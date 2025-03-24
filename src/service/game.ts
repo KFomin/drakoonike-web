@@ -1,27 +1,20 @@
-export const getQuestDifficulty = (quest) => {
+import {QuestModel, GameData} from '../models/models';
+
+export const getQuestDifficulty = (quest: QuestModel): string => {
     switch (quest.probability.toLowerCase()) {
         case 'walk in the park':
-            return 'easy';
         case 'piece of cake':
-            return 'easy';
         case 'quite likely':
-            return 'easy';
         case 'sure thing':
             return 'easy';
         case 'hmmm....':
-            return 'medium';
         case 'risky':
-            return 'medium';
         case 'gamble':
             return 'medium';
         case 'rather detrimental':
-            return 'hard';
         case 'playing with fire':
-            return 'hard';
         case 'suicide mission':
-            return 'hard';
         case 'impossible':
-            return 'hard';
         case 'better avoid':
             return 'hard';
         default:
@@ -29,11 +22,14 @@ export const getQuestDifficulty = (quest) => {
     }
 }
 
-export const sortByQuestDifficultyAndReward = (quests) => {
-    const sortedByDifficulty = quests.sort((a, b) => {
-        return toDifficultyNo(a.probability) - toDifficultyNo(b.probability)
-    })
-    const splitIntoGroups = sortedByDifficulty.reduce((acc, current) => {
+export const sortByQuestDifficultyAndReward = (quests: QuestModel[]): QuestModel[] => {
+    const sortedByDifficulty: QuestModel[] = quests.sort((a, b) => {
+        return toDifficultyNo(a.probability) - toDifficultyNo(b.probability);
+    });
+
+    const splitIntoGroups: { [key: number]: QuestModel[] } = sortedByDifficulty.reduce((acc: {
+        [key: number]: QuestModel[]
+    }, current) => {
         const difficulty = toDifficultyNo(current.probability);
 
         if (!acc[difficulty]) {
@@ -41,23 +37,17 @@ export const sortByQuestDifficultyAndReward = (quests) => {
         }
 
         acc[difficulty].push(current);
-        acc[difficulty].sort((a, b) => {
-            typeof a.reward
-            return a.reward - b.reward
-        });
+        acc[difficulty].sort((a, b) => a.reward - b.reward);
 
         return acc;
-    }, [])
+    }, {});
 
-    return splitIntoGroups.flatMap(group => {
-        return group.sort((a, b) => {
-            return b.reward - a.reward;
-        })
+    return Object.values(splitIntoGroups).flatMap(group => {
+        return group.sort((a, b) => b.reward - a.reward);
     });
-
 }
 
-const toDifficultyNo = (probability) => {
+const toDifficultyNo = (probability: string): number => {
     switch (probability.toLowerCase()) {
         case 'walk in the park':
             return 1;
@@ -88,43 +78,42 @@ const toDifficultyNo = (probability) => {
     }
 }
 
-
-export const suggestAnItemToBuy = (lastSuggestedItem, gameData) => {
+export const suggestAnItemToBuy = (lastSuggestedItem: string, gameData: GameData): string => {
     if (gameData.gold < 50) {
         return '';
     }
 
     if (gameData.lives < 3) {
-        return "hpot";
+        return 'hpot';
     }
 
     if (gameData.gold > 300) {
         switch (lastSuggestedItem) {
-            case "ch":
-                return "rf";
-            case "rf":
-                return "iron";
-            case "iron":
-                return "mtrix";
-            case "mtrix":
-                return "wingpotmax";
+            case 'ch':
+                return 'rf';
+            case 'rf':
+                return 'iron';
+            case 'iron':
+                return 'mtrix';
+            case 'mtrix':
+                return 'wingpotmax';
             default:
-                return "ch";
+                return 'ch';
         }
     }
 
     if (gameData.turn < 30 && gameData.gold > 100) {
         switch (lastSuggestedItem) {
-            case "cs":
-                return "gas";
-            case "gas":
-                return "wax";
-            case "wax":
-                return "tricks";
-            case "tricks":
-                return "wingpot";
+            case 'cs':
+                return 'gas';
+            case 'gas':
+                return 'wax';
+            case 'wax':
+                return 'tricks';
+            case 'tricks':
+                return 'wingpot';
             default:
-                return "cs";
+                return 'cs';
         }
     }
 

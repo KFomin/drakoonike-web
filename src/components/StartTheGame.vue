@@ -1,16 +1,17 @@
-<script setup>
-import {defineProps} from 'vue';
+<script lang="ts" setup>
 
-const props = defineProps({
-  startGame: {
-    type: Function,
-    required: true,
-  },
-  gameEndData: {
-    type: Object,
-    required: false,
-  }
-});
+interface GameEndData {
+  score: number;
+  level: number;
+  turn: number;
+  gold: number;
+}
+
+const props = defineProps<{
+  startGame: () => void;
+  gameEndData?: GameEndData;
+}>();
+
 </script>
 
 <template>

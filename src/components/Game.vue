@@ -1,41 +1,38 @@
-<script setup>
+<script lang="ts" setup>
 import {reactive, onMounted} from 'vue';
 import {
   GET_QUEST_BOARD,
   GET_SHOP_ITEMS,
   POST_BUY_AN_ITEM,
   POST_SOLVE_THE_QUEST
-} from '@/resource/api.js';
-import {QuestModel, ShopItem} from "@/models/models.js";
-import {sortByQuestDifficultyAndReward, suggestAnItemToBuy} from "@/service/game.js";
-import Quest from "@/components/Quest.vue";
+} from '../resource/api.ts';
+import {QuestModel, ShopItem, GameData, GameEndData} from "../models/models";
+import {sortByQuestDifficultyAndReward, suggestAnItemToBuy} from "../service/game";
+import Quest from "../components/Quest.vue";
 import {
   decode,
   decodeROT13,
   deleteLocalStorageGameData,
   setLocalStorageGameData
-} from "@/service/utils.js";
+} from "../service/utils.ts";
 
-const props = defineProps({
-  gameData: {
-    type: Object,
-    required: true,
-  },
-  onGameEnd: {
-    type: Function,
-    required: true,
-  }
-});
+const props = defineProps<{
+  gameData: GameData;
+  onGameEnd: (gameEndData: GameEndData) => void;
+}>();
 
-const state = reactive({
-  game: {
-    gameId: props.gameData.gameId,
-    lives: props.gameData.lives,
-    level: props.gameData.level,
-    gold: props.gameData.gold,
-    score: props.gameData.score,
-    turn: props.gameData.turn
-  },
+interface GameState {
+  gameData: GameData;
+  questBoard: QuestModel[];
+  shopItems: ShopItem[];
+  suggestedQuest: QuestModel | null;
+  suggestedShopItem: string;
+  loadingQuests: boolean;
+  listView: 'quests' | 'equipments';
+}
+
+const state: GameState = reactive({
+  gameData: props.gameData,
   questBoard: [],
   shopItems: [],
   suggestedQuest: null,
@@ -44,39 +41,28 @@ const state = reactive({
   listView: 'quests',
 });
 
-const toggleListView = (view) => {
+const toggleListView = (view: 'quests' | 'equipments') => {
   state.listView = view;
 };
 
 const fetchQuests = async () => {
   try {
     state.loadingQuests = true;
-    const questBoardResponse = await GET_QUEST_BOARD(props.gameData.gameId);
-    const quests = questBoardResponse.map(item => new QuestModel(
-        item.adId,
-        item.message,
-        item.reward,
-        item.expiresIn,
-        item.probability,
-        item.encrypted
-    ));
-
-    quests.forEach((quest) => {
-      if (quest.encrypted === 1) {
-        quest.adId = decode(quest.adId);
-        quest.message = decode(quest.message);
-        quest.probability = decode(quest.probability);
-      } else if (quest.encrypted === 2) {
-        quest.adId = decodeROT13(quest.adId);
-        quest.message = decodeROT13(quest.message);
-        quest.probability = decodeROT13(quest.probability);
-      }
+    GET_QUEST_BOARD(state.gameData.gameId).then((quests: QuestModel[]) => {
+      quests.forEach((quest: QuestModel) => {
+        if (quest.encrypted === 1) {
+          quest.adId = decode(quest.adId);
+          quest.message = decode(quest.message);
+          quest.probability = decode(quest.probability);
+        } else if (quest.encrypted === 2) {
+          quest.adId = decodeROT13(quest.adId);
+          quest.message = decodeROT13(quest.message);
+          quest.probability = decodeROT13(quest.probability);
+        }
+      });
+      state.questBoard = sortByQuestDifficultyAndReward(quests);
+      state.suggestedQuest = state.questBoard[0];
     });
-
-    state.questBoard = sortByQuestDifficultyAndReward(quests);
-    console.log(state.questBoard);
-    state.suggestedQuest = state.questBoard[0];
-    console.log(state.questBoard);
   } catch (error) {
     console.error(error);
   } finally {
@@ -86,95 +72,92 @@ const fetchQuests = async () => {
 
 const fetchShopItems = async () => {
   try {
-    const shopDataResponse = await GET_SHOP_ITEMS(props.gameData.gameId);
-    state.shopItems = shopDataResponse.map(item => new ShopItem(
-        item.id,
-        item.name,
-        item.cost
-    ));
+    GET_SHOP_ITEMS(props.gameData.gameId).then((items: ShopItem[]) => {
+      state.shopItems = items;
+    });
   } catch (error) {
     console.error(error);
   }
 };
 
-const canBuyThisItem = (itemId) => {
-  const itemToBuy = state.shopItems.find(item => item.id === itemId);
-  return itemToBuy ? itemToBuy.cost < state.game.gold : false;
+const canBuyThisItem = (itemId: string) => {
+  const itemToBuy = state.shopItems.find((item: ShopItem) => item.id === itemId);
+  return itemToBuy ? itemToBuy.cost < state.gameData.gold : false;
 };
 
-const onSolveClick = async (quest) => {
+const onSolveClick = async (quest: QuestModel | null) => {
+  state.loadingQuests = true;
+  if (quest === null) {
+    return;
+  }
   try {
-    state.loadingQuests = true;
-    const solveQuestResponse = await POST_SOLVE_THE_QUEST(props.gameData.gameId, quest.adId);
+    POST_SOLVE_THE_QUEST(props.gameData.gameId, quest.adId).then((response) => {
+      if (response.message.toLowerCase().includes('defeated')) {
+        props.onGameEnd({
+          score: response.score,
+          turn: response.turn,
+          gold: response.gold,
+          level: state.gameData.level,
+        });
+        deleteLocalStorageGameData();
+        return;
+      }
 
-    if (solveQuestResponse.message.toLowerCase().includes('defeated')) {
-      props.onGameEnd({
-        score: solveQuestResponse.score,
-        turn: solveQuestResponse.turn,
-        gold: solveQuestResponse.gold,
-        level: state.game.level,
-      });
-      deleteLocalStorageGameData();
-      return;
-    }
+      Object.assign(state.gameData, response);
+      setLocalStorageGameData(state.gameData);
 
-    Object.assign(state.game, solveQuestResponse);
-    setLocalStorageGameData(state.game);
-
-    const suggestedToBuy = suggestAnItemToBuy(state.suggestedShopItem, state.game);
-    if (suggestedToBuy !== '') {
-      state.suggestedShopItem = suggestedToBuy;
-    }
-
-    await fetchQuests();
+      const suggestedToBuy = suggestAnItemToBuy(state.suggestedShopItem, state.gameData);
+      if (suggestedToBuy !== '') {
+        state.suggestedShopItem = suggestedToBuy;
+      }
+      fetchQuests();
+    });
   } catch (error) {
-    console.error(error);
-  } finally {
     state.loadingQuests = false;
+    console.error(error);
   }
 };
 
-const onBuyClick = async (itemId) => {
+const onBuyClick = async (itemId: string) => {
   try {
-    const buyItemResponse = await POST_BUY_AN_ITEM(props.gameData.gameId, itemId);
-    Object.assign(state.game, buyItemResponse);
-
-    const suggestedToBuy = suggestAnItemToBuy(state.suggestedShopItem, state.game);
-    if (suggestedToBuy !== '') {
-      state.suggestedShopItem = suggestedToBuy;
-    }
-    await fetchQuests();
+    POST_BUY_AN_ITEM(props.gameData.gameId, itemId).then((response) => {
+      Object.assign(state.gameData, response);
+      const suggestedToBuy = suggestAnItemToBuy(state.suggestedShopItem, state.gameData);
+      if (suggestedToBuy !== '') {
+        state.suggestedShopItem = suggestedToBuy;
+      }
+      fetchQuests();
+    });
   } catch (error) {
     console.error(error);
   }
 };
 
-onMounted(async () => {
-  await Promise.all([fetchQuests(), fetchShopItems()]);
-});
+onMounted(fetchQuests(), fetchShopItems());
+
 </script>
 <template>
   <div class="game">
     <ul class="stats">
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/live.png" alt="lives"/>
-        <span>{{ state.game.lives }}</span>
+        <span>{{ state.gameData.lives }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/level.png" alt="level"/>
-        <span>{{ state.game.level }}</span>
+        <span>{{ state.gameData.level }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/gold.png" alt="gold"/>
-        <span>{{ state.game.gold }}</span>
+        <span>{{ state.gameData.gold }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/score.png" alt="score"/>
-        <span>{{ state.game.score }}</span>
+        <span>{{ state.gameData.score }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/calendar.png" alt="turn"/>
-        <span>{{ state.game.turn }}</span>
+        <span>{{ state.gameData.turn }}</span>
       </li>
     </ul>
     <div class="top-actions">
@@ -183,8 +166,8 @@ onMounted(async () => {
               @click="toggleListView('quests')">Quests
       </button>
       <button class="top-actions-button"
-              :class="{active: state.listView === 'shop', canBuy: state.game.gold > 50 && state.listView !== 'shop'}"
-              @click="toggleListView('shop')">Shop
+              :class="{active: state.listView === 'equipments', canBuy: state.gameData.gold > 50 && state.listView !== 'equipments'}"
+              @click="toggleListView('equipments')">Shop
       </button>
       <button class="top-actions-button autoaction"
               :class="{disabled: state.loadingQuests}"
@@ -210,10 +193,10 @@ onMounted(async () => {
              :loading="state.loadingQuests"/>
     </div>
 
-    <div class="list-view" v-if="state.listView === 'shop'">
+    <div class="list-view" v-if="state.listView === 'equipments'">
       <div v-for="item in state.shopItems" :key="item.id" class="shop-item"
-           :class="{canBuy: item.cost < state.game.gold}">
-        <button @click="onBuyClick(item.id)" class="item-buy-button" :class="{canBuy: item.cost < state.game.gold}">
+           :class="{canBuy: item.cost < state.gameData.gold}">
+        <button @click="onBuyClick(item.id)" class="item-buy-button" :class="{canBuy: item.cost < state.gameData.gold}">
           Buy
         </button>
         <p class="shop-item__name">{{ item.name }}</p>

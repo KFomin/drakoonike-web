@@ -2,19 +2,15 @@ import base64 from "base-64";
 
 /**
  * Decodes a Base64 encoded string.
- * @param {string} encodedText The Base64 encoded text to decode.
- * @returns {string} The decoded string.
  */
-export function decode(encodedText) {
+export function decode(encodedText: string): string {
     return base64.decode(encodedText);
 }
 
 /**
  * Decodes a ROT13 encoded string.
- * @param {string} encodedText The ROT13 encoded text to decode.
- * @returns {string} The decoded string.
  */
-export function decodeROT13(encodedText) {
+export function decodeROT13(encodedText: string): string {
     let decoded = '';
     for (let c of encodedText) {
         if (/[a-zA-Z]/.test(c)) {
@@ -29,7 +25,7 @@ export function decodeROT13(encodedText) {
 /**
  * Try to get gameData from localStorage.
  */
-export function getLocalStorageGameData() {
+export function getLocalStorageGameData(): object | null {
     const retrievedData = localStorage.getItem('gameData');
     return retrievedData ? JSON.parse(retrievedData) : null;
 }
@@ -37,13 +33,13 @@ export function getLocalStorageGameData() {
 /**
  * Update/set gameData in localstorage.
  */
-export function setLocalStorageGameData(gameData) {
+export function setLocalStorageGameData(gameData: object): void {
     localStorage.setItem('gameData', JSON.stringify(gameData));
 }
 
 /**
  * Remove gameData from localstorage.
  */
-export function deleteLocalStorageGameData(){
+export function deleteLocalStorageGameData(): void {
     localStorage.removeItem('gameData');
 }

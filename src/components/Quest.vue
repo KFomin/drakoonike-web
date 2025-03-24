@@ -1,22 +1,12 @@
-<script setup>
-import {defineProps} from 'vue';
-import {getQuestDifficulty} from '@/service/game.js';
+<script setup lang="ts">
+import {getQuestDifficulty} from '../service/game';
+import {QuestModel} from "../models/models";
 
-const props = defineProps({
-  quest: {
-    type: Object,
-    required: true
-  },
-  onSolveClick: {
-    type: Function,
-    required: true
-  },
-  loading: {
-    type: Boolean,
-    required: true
-  }
-});
-
+const props = defineProps<{
+  quest: QuestModel;
+  onSolveClick: (quest: QuestModel) => void;
+  loading: boolean;
+}>();
 
 const questClass = () => {
   const difficulty = getQuestDifficulty(props.quest);
@@ -26,7 +16,6 @@ const questClass = () => {
     quest__hard: difficulty === 'hard'
   };
 };
-
 </script>
 
 <template>

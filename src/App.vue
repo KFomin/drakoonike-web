@@ -1,12 +1,19 @@
-<script setup>
+<script lang="ts" setup>
 import {onBeforeMount, reactive} from 'vue';
 import StartTheGame from './components/StartTheGame.vue';
-import {GET_QUEST_BOARD, POST_START_GAME} from '@/resource/api.js';
-import {GameStartResponse, QuestModel} from '@/models/models.js';
-import Game from "@/components/Game.vue";
-import {getLocalStorageGameData} from "@/service/utils.js";
+import {GET_QUEST_BOARD, POST_START_GAME} from './resource/api.js';
+import Game from "./components/Game.vue";
+import {getLocalStorageGameData} from "./service/utils.ts";
+import {GameData, GameEndData} from 'models/models.js'
 
-const state = reactive({
+
+interface AppState {
+  gameData: GameData;
+  gameEndData: GameEndData;
+  loading: boolean;
+}
+
+const state: AppState = reactive({
   gameData: null,
   gameEndData: null,
   loading: true,
@@ -15,15 +22,8 @@ const state = reactive({
 const onGameStartClicked = async () => {
   state.loading = true;
   try {
-    POST_START_GAME().then((gameDataResponse) => {
-      state.gameData = new GameStartResponse(
-          gameDataResponse.gameId,
-          gameDataResponse.lives,
-          gameDataResponse.gold,
-          gameDataResponse.score,
-          gameDataResponse.level,
-          gameDataResponse.turn,
-      );
+    POST_START_GAME().then((gameData) => {
+      state.gameData = gameData;
       state.loading = false;
       state.gameEndData = null;
     });
@@ -45,28 +45,12 @@ onBeforeMount(async () => {
   const storedGameData = getLocalStorageGameData();
   if (storedGameData) {
     try {
-      const localStorageGameData = new GameStartResponse(
-          storedGameData.gameId,
-          storedGameData.lives,
-          storedGameData.gold,
-          storedGameData.score,
-          storedGameData.level,
-          storedGameData.turn,
-      );
+      const localStorageGameData = storedGameData;
 
       //check if game session still alive.
       //successfully gettings quest means that game session with our gameId exists.
-      GET_QUEST_BOARD(localStorageGameData.gameId).then((res) => {
-        const quest = new QuestModel(
-            res[0].adId,
-            res[0].message,
-            res[0].reward,
-            res[0].expiresIn,
-            res[0].probability,
-            res[0].encrypted
-        );
-
-        if (quest) {
+      GET_QUEST_BOARD(localStorageGameData.gameId).then((quests) => {
+        if (quests[0]) {
           state.gameData = localStorageGameData;
         }
       });
@@ -102,6 +86,7 @@ onBeforeMount(async () => {
   align-items: center;
   width: 100%;
 }
+
 .loader {
   margin-top: 10%;
 }
