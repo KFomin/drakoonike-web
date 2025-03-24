@@ -1,0 +1,46 @@
+:root {
+    color-scheme: light dark;
+}
+
+body {
+    display: flex;
+    align-content: start;
+    place-items: start;
+    font-family: "Cinzel", serif;
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #131313;
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    body {
+        background-color: #afafaf;
+    }
+}
+
+button {
+    font-family: 'Cinzel', serif;
+}
+
+#app {
+    width: 100%;
+    height: auto;
+    max-height: 90%;
+    margin: 0 auto;
+    padding: 2rem;
+    font-weight: normal;
+    display: flex;
+    justify-content: center;
+    place-items: center;
+    top: 5%;
+}
+
+@media (max-width: 900px) {
+    #app {
+        padding: 0.125rem;
+    }
+}
+
