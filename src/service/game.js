@@ -87,3 +87,46 @@ const toDifficultyNo = (probability) => {
             return 10;
     }
 }
+
+
+export const suggestAnItemToBuy = (lastSuggestedItem, gameData) => {
+    if (gameData.gold < 50) {
+        return '';
+    }
+
+    if (gameData.lives < 3) {
+        return "hpot";
+    }
+
+    if (gameData.gold > 300) {
+        switch (lastSuggestedItem) {
+            case "ch":
+                return "rf";
+            case "rf":
+                return "iron";
+            case "iron":
+                return "mtrix";
+            case "mtrix":
+                return "wingpotmax";
+            default:
+                return "ch";
+        }
+    }
+
+    if (gameData.turn < 30 && gameData.gold > 100) {
+        switch (lastSuggestedItem) {
+            case "cs":
+                return "gas";
+            case "gas":
+                return "wax";
+            case "wax":
+                return "tricks";
+            case "tricks":
+                return "wingpot";
+            default:
+                return "cs";
+        }
+    }
+
+    return '';
+}

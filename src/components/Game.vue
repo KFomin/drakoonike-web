@@ -1,10 +1,20 @@
 <script setup>
-import {ref, onMounted} from 'vue';
-import {GET_QUEST_BOARD, GET_SHOP_ITEMS, POST_BUY_AN_ITEM, POST_SOLVE_THE_QUEST} from '@/resource/api.js';
+import {reactive, onMounted} from 'vue';
+import {
+  GET_QUEST_BOARD,
+  GET_SHOP_ITEMS,
+  POST_BUY_AN_ITEM,
+  POST_SOLVE_THE_QUEST
+} from '@/resource/api.js';
 import {QuestModel, ShopItem} from "@/models/models.js";
-import {sortByQuestDifficultyAndReward} from "@/service/game.js";
+import {sortByQuestDifficultyAndReward, suggestAnItemToBuy} from "@/service/game.js";
 import Quest from "@/components/Quest.vue";
-import {decode, decodeROT13, deleteLocalStorageGameData, setLocalStorageGameData} from "@/service/utils.js";
+import {
+  decode,
+  decodeROT13,
+  deleteLocalStorageGameData,
+  setLocalStorageGameData
+} from "@/service/utils.js";
 
 const props = defineProps({
   gameData: {
@@ -17,31 +27,32 @@ const props = defineProps({
   }
 });
 
-const gameData = ref({
-  gameId: props.gameData.gameId,
-  lives: props.gameData.lives,
-  level: props.gameData.level,
-  gold: props.gameData.gold,
-  score: props.gameData.score,
-  turn: props.gameData.turn
+const state = reactive({
+  game: {
+    gameId: props.gameData.gameId,
+    lives: props.gameData.lives,
+    level: props.gameData.level,
+    gold: props.gameData.gold,
+    score: props.gameData.score,
+    turn: props.gameData.turn
+  },
+  questBoard: [],
+  shopItems: [],
+  suggestedQuest: null,
+  suggestedShopItem: '',
+  loadingQuests: true,
+  listView: 'quests',
 });
 
-const questBoard = ref([]);
-const shopItems = ref([]);
-const suggestedQuest = ref(null);
-const suggestedShopItem = ref('');
-const loadingQuests = ref(true);
-
-let listView = ref('quests');
 const toggleListView = (view) => {
-  listView.value = view;
+  state.listView = view;
 };
 
 const fetchQuests = async () => {
   try {
-    loadingQuests.value = true;
+    state.loadingQuests = true;
     const questBoardResponse = await GET_QUEST_BOARD(props.gameData.gameId);
-    let quests = questBoardResponse.map(item => new QuestModel(
+    const quests = questBoardResponse.map(item => new QuestModel(
         item.adId,
         item.message,
         item.reward,
@@ -49,221 +60,161 @@ const fetchQuests = async () => {
         item.probability,
         item.encrypted
     ));
-    quests = quests.map((quest) => {
+
+    quests.forEach((quest) => {
       if (quest.encrypted === 1) {
         quest.adId = decode(quest.adId);
         quest.message = decode(quest.message);
         quest.probability = decode(quest.probability);
+      } else if (quest.encrypted === 2) {
+        quest.adId = decodeROT13(quest.adId);
+        quest.message = decodeROT13(quest.message);
+        quest.probability = decodeROT13(quest.probability);
       }
-      if (quest.encrypted === 2) {
-        quests.adId = decodeROT13(quest.adId);
-        quests.message = decodeROT13(quest.message);
-        quests.probability = decodeROT13(quest.probability);
-      }
-      return quest;
     });
-    questBoard.value = sortByQuestDifficultyAndReward(quests);
-    suggestedQuest.value = questBoard.value[0];
+
+    state.questBoard = sortByQuestDifficultyAndReward(quests);
+    console.log(state.questBoard);
+    state.suggestedQuest = state.questBoard[0];
+    console.log(state.questBoard);
   } catch (error) {
     console.error(error);
   } finally {
-    loadingQuests.value = false;
+    state.loadingQuests = false;
   }
-}
+};
 
 const fetchShopItems = async () => {
   try {
     const shopDataResponse = await GET_SHOP_ITEMS(props.gameData.gameId);
-    shopItems.value = shopDataResponse.map(item => new ShopItem(
+    state.shopItems = shopDataResponse.map(item => new ShopItem(
         item.id,
         item.name,
         item.cost
-    ))
+    ));
   } catch (error) {
     console.error(error);
   }
-}
+};
 
 const canBuyThisItem = (itemId) => {
-  let itemToBuy = shopItems.value.find(item => item.id === itemId);
-  if (itemToBuy) {
-    return itemToBuy.cost < gameData.value.gold;
-  }
-  return false;
-}
+  const itemToBuy = state.shopItems.find(item => item.id === itemId);
+  return itemToBuy ? itemToBuy.cost < state.game.gold : false;
+};
 
 const onSolveClick = async (quest) => {
   try {
-    loadingQuests.value = true;
+    state.loadingQuests = true;
     const solveQuestResponse = await POST_SOLVE_THE_QUEST(props.gameData.gameId, quest.adId);
+
     if (solveQuestResponse.message.toLowerCase().includes('defeated')) {
       props.onGameEnd({
         score: solveQuestResponse.score,
         turn: solveQuestResponse.turn,
         gold: solveQuestResponse.gold,
-        level: gameData.value.level,
+        level: state.game.level,
       });
       deleteLocalStorageGameData();
       return;
     }
-    gameData.value = {
-      ...gameData.value,
-      ...solveQuestResponse
-    };
 
-    setLocalStorageGameData(gameData.value);
+    Object.assign(state.game, solveQuestResponse);
+    setLocalStorageGameData(state.game);
 
-    let suggestedToBuy = suggestAnItemToBuy(suggestedShopItem.value, gameData);
+    const suggestedToBuy = suggestAnItemToBuy(state.suggestedShopItem, state.game);
     if (suggestedToBuy !== '') {
-      suggestedShopItem.value = suggestAnItemToBuy(suggestedShopItem.value, gameData);
+      state.suggestedShopItem = suggestedToBuy;
     }
 
     await fetchQuests();
   } catch (error) {
     console.error(error);
   } finally {
-    loadingQuests.value = false;
+    state.loadingQuests = false;
   }
-}
-
-const suggestAnItemToBuy = (lastSuggestedItem, gameData) => {
-  if (gameData.value.gold < 50) {
-    return '';
-  }
-
-  if (gameData.value.lives < 3) {
-    return "hpot";
-  }
-
-  if (gameData.value.gold > 300) {
-    switch (lastSuggestedItem) {
-      case "ch":
-        return "rf";
-      case "rf":
-        return "iron";
-      case "iron":
-        return "mtrix";
-      case "mtrix":
-        return "wingpotmax";
-      default:
-        return "ch";
-    }
-  }
-
-  if (gameData.value.turn < 30 && gameData.value.gold > 100) {
-    switch (lastSuggestedItem) {
-      case "cs":
-        return "gas";
-      case "gas":
-        return "wax";
-      case "wax":
-        return "tricks";
-      case "tricks":
-        return "wingpot";
-      default:
-        return "cs";
-    }
-  }
-
-  return '';
-}
+};
 
 const onBuyClick = async (itemId) => {
   try {
-    const buyItemResponse = await POST_BUY_AN_ITEM(props.gameData.gameId, itemId)
-    gameData.value = {
-      ...gameData.value,
-      ...{
-        gold: buyItemResponse.gold,
-        lives: buyItemResponse.lives,
-        level: buyItemResponse.level,
-        turn: buyItemResponse.turn
-      }
-    }
-    console.log(itemId);
+    const buyItemResponse = await POST_BUY_AN_ITEM(props.gameData.gameId, itemId);
+    Object.assign(state.game, buyItemResponse);
 
-    let suggestedToBuy = suggestAnItemToBuy(suggestedShopItem.value, gameData);
+    const suggestedToBuy = suggestAnItemToBuy(state.suggestedShopItem, state.game);
     if (suggestedToBuy !== '') {
-      suggestedShopItem.value = suggestAnItemToBuy(suggestedShopItem.value, gameData);
+      state.suggestedShopItem = suggestedToBuy;
     }
     await fetchQuests();
   } catch (error) {
     console.error(error);
   }
-}
+};
 
-
-onMounted(fetchQuests(), fetchShopItems());
-
+onMounted(async () => {
+  await Promise.all([fetchQuests(), fetchShopItems()]);
+});
 </script>
-
 <template>
   <div class="game">
     <ul class="stats">
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/live.png" alt="lives"/>
-        <span>{{ gameData.lives }}</span>
+        <span>{{ state.game.lives }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/level.png" alt="level"/>
-        <span>{{ gameData.level }}</span>
+        <span>{{ state.game.level }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/gold.png" alt="gold"/>
-        <span>{{ gameData.gold }}</span>
+        <span>{{ state.game.gold }}</span>
       </li>
       <li class="stat-item">
         <img class="stat-icon" src="@/assets/score.png" alt="score"/>
-        <span>{{ gameData.score }}</span>
+        <span>{{ state.game.score }}</span>
       </li>
       <li class="stat-item">
-        <img class="stat-icon" src="@/assets/calendar.png" alt="score"/>
-        <span>{{ gameData.turn }}</span>
+        <img class="stat-icon" src="@/assets/calendar.png" alt="turn"/>
+        <span>{{ state.game.turn }}</span>
       </li>
     </ul>
-
     <div class="top-actions">
-      <span class="top-actions-group">
-        <button class="top-actions-button"
-                :class="{active: listView === 'quests'}"
-                @click="toggleListView('quests')">Quests
-        </button>
-        <button class="top-actions-button"
-                :class="{active: listView === 'shop',
-                canBuy: gameData.gold > 50 && listView !== 'shop'
-                }"
-                @click=" toggleListView('shop')">Shop
-        </button>
-      </span>
-      <span class="top-actions-group">
-        <button class="top-actions-button autoaction"
-                :class="{disabled: loadingQuests}"
-                :disabled="loadingQuests"
-                @click="onSolveClick(suggestedQuest)">
-          Autorun
-          <img src="@/assets/swords.png" alt="autorun"/>
-        </button>
-        <button class="top-actions-button autoaction"
-                :class="{disabled: !canBuyThisItem(suggestedShopItem) ||  loadingQuests}"
-                :disabled="!canBuyThisItem(suggestedShopItem)"
-                @click="onBuyClick(suggestedShopItem)">
-          Autobuy
-          <img src="@/assets/gold.png" alt="autobuy"/>
-        </button>
-      </span>
+      <button class="top-actions-button"
+              :class="{active: state.listView === 'quests'}"
+              @click="toggleListView('quests')">Quests
+      </button>
+      <button class="top-actions-button"
+              :class="{active: state.listView === 'shop', canBuy: state.game.gold > 50 && state.listView !== 'shop'}"
+              @click="toggleListView('shop')">Shop
+      </button>
+      <button class="top-actions-button autoaction"
+              :class="{disabled: state.loadingQuests}"
+              :disabled="state.loadingQuests"
+              @click="onSolveClick(state.suggestedQuest)">
+        Autorun
+        <img src="@/assets/swords.png" alt="autorun"/>
+      </button>
+      <button class="top-actions-button autoaction"
+              :class="{disabled: !canBuyThisItem(state.suggestedShopItem) || state.loadingQuests}"
+              :disabled="!canBuyThisItem(state.suggestedShopItem)"
+              @click="onBuyClick(state.suggestedShopItem)">
+        Autobuy
+        <img src="@/assets/gold.png" alt="autobuy"/>
+      </button>
     </div>
 
-    <div class="list-view" :class="{loading: loadingQuests}" v-if="listView === 'quests'">
-      <Quest v-for="quest in questBoard"
+    <div class="list-view" :class="{loading: state.loadingQuests}" v-if="state.listView === 'quests'">
+      <Quest v-for="quest in state.questBoard"
+             :key="quest.adId"
              :quest="quest"
              :on-solve-click="onSolveClick"
-             :loading="loadingQuests">
-      </Quest>
+             :loading="state.loadingQuests"/>
     </div>
 
-    <div class="list-view" v-if="listView === 'shop'">
-      <div v-for="item in shopItems" :key="item.id" class="shop-item" :class="{canBuy: item.cost < gameData.gold}">
-        <button @click="onBuyClick(item.id)" class="item-buy-button" :class="{canBuy: item.cost < gameData.gold}">buy
+    <div class="list-view" v-if="state.listView === 'shop'">
+      <div v-for="item in state.shopItems" :key="item.id" class="shop-item"
+           :class="{canBuy: item.cost < state.game.gold}">
+        <button @click="onBuyClick(item.id)" class="item-buy-button" :class="{canBuy: item.cost < state.game.gold}">
+          Buy
         </button>
         <p class="shop-item__name">{{ item.name }}</p>
         <p class="shop-item__cost">
@@ -272,12 +223,10 @@ onMounted(fetchQuests(), fetchShopItems());
         </p>
       </div>
     </div>
-
   </div>
 </template>
 
 <style scoped>
-
 .shop-item {
   display: flex;
   min-width: 20rem;
@@ -329,16 +278,10 @@ onMounted(fetchQuests(), fetchShopItems());
 .top-actions {
   width: 100%;
   display: flex;
-  gap: 1.2rem;
-  flex-direction: row;
-  justify-content: space-between;
-}
-
-.top-actions-group {
-  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
   flex-wrap: wrap;
-  justify-content: space-around;
-  gap: 1rem;
+  flex-direction: row;
 }
 
 .top-actions-button {
@@ -428,9 +371,7 @@ onMounted(fetchQuests(), fetchShopItems());
 
 .stat-item {
   text-align: center;
-  justify-content: center;
   display: flex;
-  padding-top: 0.5rem;
   flex-direction: column;
   font-weight: 500;
   font-size: 1.2rem;
@@ -467,5 +408,4 @@ onMounted(fetchQuests(), fetchShopItems());
 .quest__details img {
   max-width: 32px;
 }
-
 </style>
