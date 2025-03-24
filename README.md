@@ -36,4 +36,4 @@ Once the installation is complete, you can run the project in development mode:
 ```
 npm run dev
 ```
-This command will compile the project and start a local development server. You can view your application in a web browser at http://localhost:3000 (or another port if specified in your configuration).
+This command will compile the project and start a local development server.
