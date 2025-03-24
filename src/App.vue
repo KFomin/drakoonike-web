@@ -53,6 +53,7 @@ onBeforeMount(async () => {
       );
 
       //check if game session still alive.
+      //successfully gettings quest means that game session with our gameId exists.
       GET_QUEST_BOARD(localStorageGameData.gameId).then((res) => {
         const quest = new QuestModel(
             res[0].adId,
@@ -63,7 +64,6 @@ onBeforeMount(async () => {
             res[0].encrypted
         );
 
-        //successfully gettings quest means that game session with our gameId exists.
         if (quest) {
           state.gameData = localStorageGameData;
         }
@@ -83,9 +83,12 @@ onBeforeMount(async () => {
   <div class="wrapper">
     <div v-if="state.loading" class="loader"></div>
     <template v-if="!state.loading">
-      <StartTheGame v-if="!state.gameData || state.gameEndData" :start-game="onGameStartClicked"
+      <StartTheGame v-if="!state.gameData || state.gameEndData"
+                    :start-game="onGameStartClicked"
                     :game-end-data="state.gameEndData"/>
-      <Game v-if="state.gameData && !state.gameEndData" :game-data="state.gameData" :on-game-end="onGameEnd"/>
+      <Game v-if="state.gameData && !state.gameEndData"
+            :game-data="state.gameData"
+            :on-game-end="onGameEnd"/>
     </template>
   </div>
 </template>
