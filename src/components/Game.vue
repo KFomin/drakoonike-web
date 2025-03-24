@@ -344,7 +344,7 @@ onMounted(async () => {
 }
 
 .stats {
-  width: 100vw;
+  width: 100%;
   list-style: none;
   position: sticky;
   top: 0;
@@ -352,7 +352,7 @@ onMounted(async () => {
   flex-direction: row;
   justify-content: center;
   gap: 10%;
-  padding: 0.5rem;
+  padding: 0.5rem 0;
   flex-wrap: wrap;
   z-index: 1;
 }
@@ -391,6 +391,7 @@ onMounted(async () => {
   width: 100%;
   max-width: 100%;
   transition: background-color 0.2s ease;
+  padding-bottom: 2rem;
 }
 
 @keyframes gradient {

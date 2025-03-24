@@ -7,6 +7,7 @@ body {
     align-content: start;
     place-items: start;
     font-family: "Cinzel", serif;
+    margin: 0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,21 +30,12 @@ button {
     width: 100%;
     height: auto;
     max-height: 90%;
-    margin: 0 auto;
-    padding: 2rem;
+    margin: 0;
     font-weight: normal;
     display: flex;
     justify-content: center;
     place-items: center;
-    top: 5%;
 }
-
-@media (max-width: 900px) {
-    #app {
-        padding: 0.125rem;
-    }
-}
-
 
 .loader {
     width: 32px;

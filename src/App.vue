@@ -13,6 +13,7 @@ const state = reactive({
 });
 
 const onGameStartClicked = async () => {
+  state.loading = true;
   try {
     POST_START_GAME().then((gameDataResponse) => {
       state.gameData = new GameStartResponse(
@@ -23,6 +24,7 @@ const onGameStartClicked = async () => {
           gameDataResponse.level,
           gameDataResponse.turn,
       );
+      state.loading = false;
       state.gameEndData = null;
     });
   } catch (error) {
@@ -100,4 +102,15 @@ onBeforeMount(async () => {
   align-items: center;
   width: 100%;
 }
+.loader {
+  margin-top: 10%;
+}
+
+
+@media (max-width: 900px) {
+  .loader {
+    margin-top: 30%;
+  }
+}
+
 </style>
